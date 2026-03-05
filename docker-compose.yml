@@ -1,0 +1,57 @@
+services:
+  nginx:
+    build: ./nginx
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - ezi-network
+    restart: unless-stopped
+
+  backend:
+    build: ./backend
+    environment:
+      - DATABASE_URL=postgresql://ezi_user:ezi_pass@postgres:5432/ezi_returns
+      - REDIS_URL=redis://redis:6379/0
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - SECRET_KEY=${SECRET_KEY:-ezi-returns-spacer-2026}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    networks:
+      - ezi-network
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=ezi_user
+      - POSTGRES_PASSWORD=ezi_pass
+      - POSTGRES_DB=ezi_returns
+    volumes:
+      - ./database/init:/docker-entrypoint-initdb.d
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ezi_user -d ezi_returns"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - ezi-network
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    networks:
+      - ezi-network
+    restart: unless-stopped
+
+networks:
+  ezi-network:
+    driver: bridge
+
+volumes:
+  postgres_data:

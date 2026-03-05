@@ -1,0 +1,287 @@
+{% extends 'base.html' %}
+{% block title %}Condition AI - Ezi Returns{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="container-fluid px-4">
+    <h1 class="page-title"><i class="bi bi-camera me-2 text-secondary"></i>AI Condition Assessment</h1>
+    <p class="page-sub">Upload a return photo or run a demo assessment to see AI classification in action</p>
+  </div>
+</div>
+
+<div class="container-fluid px-4 pb-5">
+  <div class="row g-4">
+
+    <!-- Upload Panel -->
+    <div class="col-lg-5">
+      <div class="chart-card">
+        <div class="chart-card-header">
+          <h5 class="chart-title mb-0"><i class="bi bi-cloud-upload me-2"></i>Submit Item for Assessment</h5>
+        </div>
+        <div class="p-4">
+
+          <!-- Upload area -->
+          <div class="upload-area" id="upload-area" onclick="document.getElementById('imageInput').click()">
+            <div id="upload-placeholder">
+              <i class="bi bi-camera display-4 text-muted mb-3 d-block"></i>
+              <p class="mb-1 fw-semibold">Drop image here or click to upload</p>
+              <p class="text-muted small mb-0">JPG, PNG, WEBP up to 10MB</p>
+            </div>
+            <img id="image-preview" class="upload-preview d-none" alt="Preview">
+          </div>
+          <input type="file" id="imageInput" accept="image/*" class="d-none" onchange="previewImage(this)">
+
+          <div class="mt-3 d-flex gap-2">
+            {% if ai_enabled %}
+            <button class="btn btn-primary flex-fill" id="analyze-btn" onclick="analyzeImage(false)" disabled>
+              <i class="bi bi-cpu me-2"></i>Analyze Image
+            </button>
+            {% endif %}
+            <button class="btn {% if ai_enabled %}btn-outline-secondary{% else %}btn-primary flex-fill{% endif %}" onclick="analyzeImage(true)" id="demo-btn">
+              <i class="bi bi-play-circle me-2"></i>{% if not ai_enabled %}Run Demo Assessment{% else %}Demo{% endif %}
+            </button>
+          </div>
+
+          {% if not ai_enabled %}
+          <div class="alert alert-info mt-3 mb-0 small">
+            <i class="bi bi-info-circle me-1"></i>
+            Running in <strong>Demo Mode</strong>. Set <code>ANTHROPIC_API_KEY</code> in <code>.env</code> to enable live AI assessment with real images.
+          </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Assessment History -->
+      <div class="chart-card mt-4">
+        <div class="chart-card-header">
+          <h5 class="chart-title mb-0"><i class="bi bi-clock-history me-2"></i>Recent Assessments</h5>
+        </div>
+        <div id="history-list" class="p-3">
+          <p class="text-muted text-center py-2 small">Loading history...</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Results Panel -->
+    <div class="col-lg-7">
+      <div class="chart-card h-100" id="results-panel">
+        <div class="chart-card-header">
+          <h5 class="chart-title mb-0"><i class="bi bi-bar-chart-line me-2"></i>Assessment Results</h5>
+        </div>
+
+        <!-- Empty state -->
+        <div id="empty-state" class="d-flex flex-column align-items-center justify-content-center p-5 text-center" style="min-height:400px">
+          <i class="bi bi-camera display-1 text-muted mb-3"></i>
+          <h5 class="text-muted">No Assessment Yet</h5>
+          <p class="text-muted small">Upload a return photo or click <strong>Run Demo Assessment</strong><br>to see AI condition analysis in action.</p>
+        </div>
+
+        <!-- Loading state -->
+        <div id="loading-state" class="d-none d-flex flex-column align-items-center justify-content-center p-5 text-center" style="min-height:400px">
+          <div class="ai-spinner mb-3">
+            <div class="spinner-ring"></div>
+            <i class="bi bi-cpu ai-spinner-icon"></i>
+          </div>
+          <h5 class="mt-3">Analyzing Item...</h5>
+          <p class="text-muted small">AI is assessing condition, damage types, and recovery options</p>
+        </div>
+
+        <!-- Results state -->
+        <div id="results-state" class="d-none p-4">
+          <!-- Condition header -->
+          <div class="condition-result-header mb-4">
+            <div class="d-flex align-items-center gap-3">
+              <div class="condition-grade-badge" id="r-grade-badge">Good</div>
+              <div>
+                <div class="fw-bold fs-5" id="r-condition">--</div>
+                <div class="text-muted small">Condition Classification</div>
+              </div>
+              <div class="ms-auto text-end">
+                <div class="confidence-value" id="r-confidence">--</div>
+                <div class="text-muted small">Confidence</div>
+              </div>
+            </div>
+            <div class="confidence-bar mt-2">
+              <div class="confidence-fill" id="r-confidence-bar" style="width:0%"></div>
+            </div>
+          </div>
+
+          <div class="row g-3 mb-3">
+            <div class="col-sm-6">
+              <div class="result-detail-card">
+                <div class="detail-label"><i class="bi bi-wrench me-1"></i>Recommended Action</div>
+                <div class="detail-value" id="r-action">--</div>
+              </div>
+            </div>
+            <div class="col-sm-6">
+              <div class="result-detail-card">
+                <div class="detail-label"><i class="bi bi-graph-up me-1"></i>Value Recovery</div>
+                <div class="detail-value text-success" id="r-recovery">--</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="result-detail-card mb-3">
+            <div class="detail-label"><i class="bi bi-exclamation-triangle me-1"></i>Damage / Observations</div>
+            <div id="r-damage-list" class="mt-2"></div>
+          </div>
+
+          <div class="result-detail-card">
+            <div class="detail-label"><i class="bi bi-card-text me-1"></i>AI Assessment Notes</div>
+            <p class="detail-value mb-0 mt-1" id="r-notes">--</p>
+          </div>
+
+          <div class="mt-3 d-flex gap-2">
+            <button class="btn btn-success btn-sm" onclick="approveReturn()">
+              <i class="bi bi-check-lg me-1"></i>Approve Return
+            </button>
+            <button class="btn btn-danger btn-sm" onclick="rejectReturn()">
+              <i class="bi bi-x-lg me-1"></i>Reject
+            </button>
+            <button class="btn btn-outline-secondary btn-sm ms-auto" onclick="resetAssessment()">
+              <i class="bi bi-arrow-clockwise me-1"></i>New Assessment
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const CONDITION_COLORS = {
+  'New/Unused': '#00C853', 'Like New': '#00BDA5', 'Good': '#1565C0',
+  'Fair': '#F5A623', 'Poor': '#FF6D00', 'Damaged/Unusable': '#DC3545',
+};
+
+function previewImage(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    document.getElementById('upload-placeholder').classList.add('d-none');
+    const preview = document.getElementById('image-preview');
+    preview.src = e.target.result;
+    preview.classList.remove('d-none');
+    const btn = document.getElementById('analyze-btn');
+    if (btn) btn.disabled = false;
+  };
+  reader.readAsDataURL(file);
+}
+
+async function analyzeImage(demo) {
+  showState('loading');
+
+  try {
+    let response;
+    if (demo) {
+      response = await fetch('/api/assess-condition', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ demo_mode: true }),
+      });
+    } else {
+      const file = document.getElementById('imageInput').files[0];
+      if (!file) { alert('Please select an image first.'); showState('empty'); return; }
+      const formData = new FormData();
+      formData.append('image', file);
+      response = await fetch('/api/assess-condition', { method: 'POST', body: formData });
+    }
+
+    const data = await response.json();
+    if (data.error) { alert('Error: ' + data.error); showState('empty'); return; }
+    displayResults(data);
+    loadHistory();
+  } catch (e) {
+    alert('Network error: ' + e.message);
+    showState('empty');
+  }
+}
+
+function displayResults(data) {
+  const condition = data.condition || 'Unknown';
+  const confidence = data.confidence || 0;
+  const color = CONDITION_COLORS[condition] || '#6c757d';
+
+  document.getElementById('r-condition').textContent = condition;
+  document.getElementById('r-confidence').textContent = confidence + '%';
+  document.getElementById('r-grade-badge').textContent = condition;
+  document.getElementById('r-grade-badge').style.background = color;
+  document.getElementById('r-confidence-bar').style.width = confidence + '%';
+  document.getElementById('r-confidence-bar').style.background = color;
+  document.getElementById('r-action').textContent = data.action || '--';
+  document.getElementById('r-recovery').textContent = data.estimated_value_recovery || '--';
+  document.getElementById('r-notes').textContent = data.notes || '--';
+
+  const dmg = data.damage_types || [];
+  const dmgEl = document.getElementById('r-damage-list');
+  if (dmg.length === 0) {
+    dmgEl.innerHTML = '<span class="text-success small"><i class="bi bi-check-circle me-1"></i>No damage detected</span>';
+  } else {
+    dmgEl.innerHTML = dmg.map(d => `<span class="damage-tag">${d}</span>`).join('');
+  }
+
+  showState('results');
+}
+
+function showState(state) {
+  ['empty-state', 'loading-state', 'results-state'].forEach(id => {
+    document.getElementById(id).classList.add('d-none');
+  });
+  document.getElementById(state + '-state').classList.remove('d-none');
+}
+
+function resetAssessment() {
+  document.getElementById('imageInput').value = '';
+  document.getElementById('upload-placeholder').classList.remove('d-none');
+  document.getElementById('image-preview').classList.add('d-none');
+  const btn = document.getElementById('analyze-btn');
+  if (btn) btn.disabled = true;
+  showState('empty');
+}
+
+function approveReturn() {
+  const btn = event.target;
+  btn.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i>Approved';
+  btn.disabled = true;
+  btn.className = 'btn btn-success btn-sm';
+}
+
+function rejectReturn() {
+  const btn = event.target;
+  btn.innerHTML = '<i class="bi bi-x-circle-fill me-1"></i>Rejected';
+  btn.disabled = true;
+  btn.className = 'btn btn-danger btn-sm';
+}
+
+async function loadHistory() {
+  try {
+    const res = await fetch('/api/recent-assessments');
+    const items = await res.json();
+    const container = document.getElementById('history-list');
+    if (items.length === 0) {
+      container.innerHTML = '<p class="text-muted text-center py-2 small">No assessments yet</p>';
+      return;
+    }
+    const color = c => CONDITION_COLORS[c] || '#6c757d';
+    container.innerHTML = items.map(item => `
+      <div class="history-item">
+        <div class="d-flex align-items-center gap-2">
+          <span class="condition-dot" style="background:${color(item.condition)}"></span>
+          <span class="fw-semibold small">${item.condition || 'Unknown'}</span>
+          <span class="badge bg-light text-dark ms-auto">${item.confidence || '--'}%</span>
+        </div>
+        <div class="text-muted small mt-1">${item.action || '--'} &bull; ${item.assessed_at}</div>
+      </div>
+    `).join('');
+  } catch (e) {}
+}
+
+loadHistory();
+showState('empty');
+</script>
+{% endblock %}

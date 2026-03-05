@@ -1,0 +1,207 @@
+{% extends 'base.html' %}
+{% block title %}Fraud Detection - Ezi Returns{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="container-fluid px-4">
+    <h1 class="page-title"><i class="bi bi-shield-exclamation me-2 text-danger"></i>Fraud Detection</h1>
+    <p class="page-sub">Pattern recognition and AI risk scoring for suspicious return behaviour</p>
+  </div>
+</div>
+
+<div class="container-fluid px-4 pb-5">
+
+  <!-- Stats Row -->
+  <div class="row g-4 mb-4">
+    <div class="col-sm-6 col-xl-3">
+      <div class="kpi-card kpi-red">
+        <div class="kpi-icon"><i class="bi bi-exclamation-triangle"></i></div>
+        <div class="kpi-body">
+          <div class="kpi-value" id="f-active">--</div>
+          <div class="kpi-label">Active Fraud Alerts</div>
+        </div>
+        <div class="kpi-trend"><span class="text-muted small">Require manual review</span></div>
+      </div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+      <div class="kpi-card kpi-amber">
+        <div class="kpi-icon"><i class="bi bi-graph-up"></i></div>
+        <div class="kpi-body">
+          <div class="kpi-value" id="f-avg-score">--</div>
+          <div class="kpi-label">Avg. Risk Score</div>
+        </div>
+        <div class="kpi-trend"><span class="text-muted small">Across flagged returns</span></div>
+      </div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+      <div class="kpi-card kpi-red">
+        <div class="kpi-icon"><i class="bi bi-currency-dollar"></i></div>
+        <div class="kpi-body">
+          <div class="kpi-value" id="f-exposed">--</div>
+          <div class="kpi-label">Value at Risk (ZAR)</div>
+        </div>
+        <div class="kpi-trend"><span class="text-muted small">Unresolved flags</span></div>
+      </div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+      <div class="kpi-card kpi-green">
+        <div class="kpi-icon"><i class="bi bi-shield-check"></i></div>
+        <div class="kpi-body">
+          <div class="kpi-value" id="f-resolved">--</div>
+          <div class="kpi-label">Resolved Today</div>
+        </div>
+        <div class="kpi-trend"><span class="text-success small"><i class="bi bi-check-circle"></i> Cases closed</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Chart + Table Row -->
+  <div class="row g-4 mb-4">
+    <div class="col-xl-4">
+      <div class="chart-card">
+        <div class="chart-card-header">
+          <h5 class="chart-title mb-0"><i class="bi bi-bar-chart me-2"></i>Risk Distribution</h5>
+        </div>
+        <div class="chart-body">
+          <canvas id="riskChart" height="200"></canvas>
+        </div>
+      </div>
+    </div>
+    <div class="col-xl-8">
+      <div class="chart-card">
+        <div class="chart-card-header">
+          <h5 class="chart-title mb-0"><i class="bi bi-flag me-2"></i>Flagged Returns</h5>
+        </div>
+        <div class="table-responsive">
+          <table class="table ezi-table mb-0">
+            <thead>
+              <tr>
+                <th>Order</th>
+                <th>Customer</th>
+                <th>Product</th>
+                <th>Risk Score</th>
+                <th>Flag Reason</th>
+                <th>Value</th>
+                <th>Date</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="fraud-table">
+              <tr><td colspan="8" class="text-center py-4 text-muted"><i class="bi bi-hourglass-split me-2"></i>Loading...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let riskChart;
+
+function riskBadge(score) {
+  if (score >= 80) return `<span class="risk-badge risk-critical">${score.toFixed(0)}</span>`;
+  if (score >= 60) return `<span class="risk-badge risk-high">${score.toFixed(0)}</span>`;
+  if (score >= 40) return `<span class="risk-badge risk-medium">${score.toFixed(0)}</span>`;
+  return `<span class="risk-badge risk-low">${score.toFixed(0)}</span>`;
+}
+
+async function loadFraudData() {
+  try {
+    const res = await fetch('/api/fraud-data');
+    const data = await res.json();
+
+    document.getElementById('f-active').textContent = data.stats.active_flags;
+    document.getElementById('f-avg-score').textContent = data.stats.avg_risk_score;
+    document.getElementById('f-exposed').textContent = data.stats.exposed_value;
+    document.getElementById('f-resolved').textContent = data.stats.resolved_today;
+
+    // Risk distribution chart
+    if (riskChart) riskChart.destroy();
+    const bandColors = {
+      'Critical (80-100)': '#DC3545',
+      'High (60-79)': '#FF6D00',
+      'Medium (40-59)': '#F5A623',
+      'Low (0-39)': '#00C853',
+    };
+    const bands = data.risk_distribution;
+    riskChart = new Chart(document.getElementById('riskChart'), {
+      type: 'bar',
+      data: {
+        labels: bands.map(b => b.band),
+        datasets: [{
+          data: bands.map(b => b.count),
+          backgroundColor: bands.map(b => bandColors[b.band] || '#6c757d'),
+          borderRadius: 6,
+          borderWidth: 0,
+        }]
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        plugins: { legend: { display: false }, tooltip: { callbacks: {
+          label: ctx => ` ${ctx.raw} flagged returns`
+        }}},
+        scales: {
+          x: { beginAtZero: true, grid: { color: '#f0f4f8' }, ticks: { color: '#6C7D8C' } },
+          y: { grid: { display: false }, ticks: { color: '#2C3E50', font: { size: 12 } } }
+        }
+      }
+    });
+
+    // Flagged returns table
+    const tbody = document.getElementById('fraud-table');
+    if (data.flagged.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="8" class="text-center py-4 text-success"><i class="bi bi-shield-check me-2"></i>No active fraud flags</td></tr>';
+      return;
+    }
+    tbody.innerHTML = data.flagged.map(r => `
+      <tr class="${r.resolved ? 'table-light opacity-50' : ''}">
+        <td><code class="order-id">${r.order_id}</code></td>
+        <td>
+          <div class="fw-semibold small">${r.customer}</div>
+          <div class="text-muted" style="font-size:11px">${r.email}</div>
+        </td>
+        <td class="product-cell small">${r.product}</td>
+        <td>${riskBadge(r.fraud_score)}</td>
+        <td class="small text-muted" style="max-width:180px">${r.reason || '--'}</td>
+        <td class="fw-semibold">R${r.value.toLocaleString('en-ZA')}</td>
+        <td class="text-muted small">${r.date}</td>
+        <td>
+          ${r.resolved
+            ? '<span class="badge bg-success-subtle text-success border border-success-subtle">Resolved</span>'
+            : `<button class="btn btn-xs btn-outline-success" onclick="resolveFlag(${r.id}, this)">
+                <i class="bi bi-check-lg"></i> Resolve
+              </button>`
+          }
+        </td>
+      </tr>
+    `).join('');
+  } catch (e) {
+    console.error('Fraud data error:', e);
+  }
+}
+
+async function resolveFlag(id, btn) {
+  btn.disabled = true;
+  btn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
+  try {
+    await fetch(`/api/resolve-flag/${id}`, { method: 'POST' });
+    btn.closest('tr').classList.add('table-light', 'opacity-50');
+    btn.outerHTML = '<span class="badge bg-success-subtle text-success border border-success-subtle">Resolved</span>';
+    const activeEl = document.getElementById('f-active');
+    activeEl.textContent = Math.max(0, parseInt(activeEl.textContent) - 1);
+    const resolvedEl = document.getElementById('f-resolved');
+    resolvedEl.textContent = parseInt(resolvedEl.textContent || 0) + 1;
+  } catch (e) {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-check-lg"></i> Resolve';
+  }
+}
+
+loadFraudData();
+</script>
+{% endblock %}

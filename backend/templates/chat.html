@@ -1,0 +1,216 @@
+{% extends 'base.html' %}
+{% block title %}Customer Chat - Ezi Returns{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="container-fluid px-4">
+    <h1 class="page-title"><i class="bi bi-chat-dots me-2 text-warning"></i>AI Customer Service</h1>
+    <p class="page-sub">24/7 intelligent returns assistant &bull; Handles queries, policy questions and status checks</p>
+  </div>
+</div>
+
+<div class="container-fluid px-4 pb-5">
+  <div class="row g-4">
+
+    <!-- Chat Panel -->
+    <div class="col-lg-8">
+      <div class="chat-card">
+        <!-- Chat header -->
+        <div class="chat-header">
+          <div class="d-flex align-items-center gap-3">
+            <div class="agent-avatar">
+              <i class="bi bi-robot"></i>
+            </div>
+            <div>
+              <div class="fw-bold">Ezi Returns Assistant</div>
+              <div class="agent-status">
+                <span class="status-dot"></span>
+                {% if ai_enabled %}AI Powered by Claude{% else %}Demo Mode{% endif %}
+              </div>
+            </div>
+            <div class="ms-auto">
+              <span class="badge bg-success-subtle text-success border border-success-subtle">Online</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Messages -->
+        <div class="chat-messages" id="chat-messages">
+          <div class="message message-bot">
+            <div class="message-bubble">
+              Hi! I'm the Ezi Returns assistant. I can help you with return status, starting a return, refund timelines, and shipping questions.
+              <br><br>
+              How can I help you today?
+            </div>
+            <div class="message-time">Now</div>
+          </div>
+        </div>
+
+        <!-- Input -->
+        <div class="chat-input-area">
+          <div class="d-flex gap-2">
+            <input
+              type="text"
+              id="chat-input"
+              class="form-control chat-input"
+              placeholder="Type your message..."
+              onkeydown="if(event.key==='Enter' && !event.shiftKey) { event.preventDefault(); sendMessage(); }"
+              autocomplete="off"
+            >
+            <button class="btn btn-primary chat-send-btn" onclick="sendMessage()" id="send-btn">
+              <i class="bi bi-send-fill"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sidebar -->
+    <div class="col-lg-4">
+
+      <!-- Quick Questions -->
+      <div class="chart-card mb-4">
+        <div class="chart-card-header">
+          <h5 class="chart-title mb-0"><i class="bi bi-lightning me-2"></i>Quick Questions</h5>
+        </div>
+        <div class="p-3 d-grid gap-2">
+          <button class="btn btn-outline-secondary btn-sm text-start quick-btn" onclick="quickSend('How do I start a return?')">
+            <i class="bi bi-arrow-return-left me-2"></i>How do I start a return?
+          </button>
+          <button class="btn btn-outline-secondary btn-sm text-start quick-btn" onclick="quickSend('How long does my refund take?')">
+            <i class="bi bi-clock me-2"></i>How long does my refund take?
+          </button>
+          <button class="btn btn-outline-secondary btn-sm text-start quick-btn" onclick="quickSend('What is your return policy?')">
+            <i class="bi bi-file-text me-2"></i>What is your return policy?
+          </button>
+          <button class="btn btn-outline-secondary btn-sm text-start quick-btn" onclick="quickSend('How do I track my return shipment?')">
+            <i class="bi bi-truck me-2"></i>How do I track my return?
+          </button>
+          <button class="btn btn-outline-secondary btn-sm text-start quick-btn" onclick="quickSend('Do I need to pay for return shipping?')">
+            <i class="bi bi-box-seam me-2"></i>Do I pay for return shipping?
+          </button>
+          <button class="btn btn-outline-secondary btn-sm text-start quick-btn" onclick="quickSend('I have an international return, what do I need to know about customs?')">
+            <i class="bi bi-globe me-2"></i>International return / customs
+          </button>
+        </div>
+      </div>
+
+      <!-- Info Card -->
+      <div class="chart-card">
+        <div class="chart-card-header">
+          <h5 class="chart-title mb-0"><i class="bi bi-info-circle me-2"></i>Policy Summary</h5>
+        </div>
+        <div class="p-3">
+          <ul class="policy-list">
+            <li><i class="bi bi-check-circle-fill text-success me-2"></i>Returns within <strong>30 days</strong></li>
+            <li><i class="bi bi-check-circle-fill text-success me-2"></i>Refunds in <strong>5-7 business days</strong></li>
+            <li><i class="bi bi-check-circle-fill text-success me-2"></i>Free returns for <strong>defective items</strong></li>
+            <li><i class="bi bi-dash-circle text-warning me-2"></i><strong>R85 fee</strong> for change of mind</li>
+            <li><i class="bi bi-check-circle-fill text-success me-2"></i>24/7 AI support</li>
+            <li><i class="bi bi-people-fill text-primary me-2"></i>Human escalation available</li>
+          </ul>
+          {% if not ai_enabled %}
+          <div class="alert alert-info mb-0 small mt-2">
+            <i class="bi bi-info-circle me-1"></i>Demo mode active. Set <code>ANTHROPIC_API_KEY</code> for live AI.
+          </div>
+          {% endif %}
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let chatHistory = [];
+let sessionId = 'session-' + Math.random().toString(36).substr(2, 9);
+let isTyping = false;
+
+function addMessage(role, text) {
+  const container = document.getElementById('chat-messages');
+  const div = document.createElement('div');
+  div.className = `message message-${role === 'user' ? 'user' : 'bot'}`;
+
+  const now = new Date();
+  const time = now.toLocaleTimeString('en-ZA', { hour: '2-digit', minute: '2-digit' });
+
+  div.innerHTML = `
+    <div class="message-bubble">${text.replace(/\n/g, '<br>')}</div>
+    <div class="message-time">${time}</div>
+  `;
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+}
+
+function showTyping() {
+  const container = document.getElementById('chat-messages');
+  const div = document.createElement('div');
+  div.className = 'message message-bot typing-indicator-wrap';
+  div.id = 'typing-indicator';
+  div.innerHTML = `
+    <div class="message-bubble typing-bubble">
+      <span class="typing-dot"></span>
+      <span class="typing-dot"></span>
+      <span class="typing-dot"></span>
+    </div>
+  `;
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+}
+
+function hideTyping() {
+  const el = document.getElementById('typing-indicator');
+  if (el) el.remove();
+}
+
+async function sendMessage() {
+  if (isTyping) return;
+  const input = document.getElementById('chat-input');
+  const text = input.value.trim();
+  if (!text) return;
+
+  input.value = '';
+  addMessage('user', text);
+  chatHistory.push({ role: 'user', content: text });
+
+  isTyping = true;
+  document.getElementById('send-btn').disabled = true;
+  showTyping();
+
+  try {
+    const res = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: text,
+        history: chatHistory.slice(-10),
+        session_id: sessionId,
+      }),
+    });
+    const data = await res.json();
+    hideTyping();
+    if (data.error) {
+      addMessage('bot', 'Sorry, I encountered an issue. Please try again.');
+    } else {
+      addMessage('bot', data.message);
+      chatHistory.push({ role: 'assistant', content: data.message });
+      if (data.session_id) sessionId = data.session_id;
+    }
+  } catch (e) {
+    hideTyping();
+    addMessage('bot', 'Connection error. Please check your network and try again.');
+  } finally {
+    isTyping = false;
+    document.getElementById('send-btn').disabled = false;
+    input.focus();
+  }
+}
+
+function quickSend(text) {
+  document.getElementById('chat-input').value = text;
+  sendMessage();
+}
+</script>
+{% endblock %}

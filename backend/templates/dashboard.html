@@ -1,0 +1,267 @@
+{% extends 'base.html' %}
+{% block title %}Dashboard - Ezi Returns{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="container-fluid px-4">
+    <div class="d-flex justify-content-between align-items-center">
+      <div>
+        <h1 class="page-title"><i class="bi bi-speedometer2 me-2 text-primary"></i>Returns Intelligence Dashboard</h1>
+        <p class="page-sub">Live operational overview &bull; Updated in real-time</p>
+      </div>
+      <button class="btn btn-outline-primary btn-sm" onclick="loadDashboard()">
+        <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+      </button>
+    </div>
+  </div>
+</div>
+
+<div class="container-fluid px-4 pb-5">
+
+  <!-- KPI Cards -->
+  <div class="row g-4 mb-4" id="kpi-row">
+    <div class="col-sm-6 col-xl-3">
+      <div class="kpi-card kpi-blue">
+        <div class="kpi-icon"><i class="bi bi-arrow-return-left"></i></div>
+        <div class="kpi-body">
+          <div class="kpi-value" id="kpi-today">--</div>
+          <div class="kpi-label">Returns Today</div>
+        </div>
+        <div class="kpi-trend"><i class="bi bi-graph-up text-success"></i> <span class="text-success small">+12% vs yesterday</span></div>
+      </div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+      <div class="kpi-card kpi-amber">
+        <div class="kpi-icon"><i class="bi bi-hourglass-split"></i></div>
+        <div class="kpi-body">
+          <div class="kpi-value" id="kpi-pending">--</div>
+          <div class="kpi-label">Pending Assessment</div>
+        </div>
+        <div class="kpi-trend"><span class="text-muted small">Avg. 2.4h processing time</span></div>
+      </div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+      <div class="kpi-card kpi-red">
+        <div class="kpi-icon"><i class="bi bi-shield-exclamation"></i></div>
+        <div class="kpi-body">
+          <div class="kpi-value" id="kpi-fraud">--</div>
+          <div class="kpi-label">Active Fraud Alerts</div>
+        </div>
+        <div class="kpi-trend"><a href="/fraud" class="text-danger small">Review alerts <i class="bi bi-arrow-right"></i></a></div>
+      </div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+      <div class="kpi-card kpi-green">
+        <div class="kpi-icon"><i class="bi bi-piggy-bank"></i></div>
+        <div class="kpi-body">
+          <div class="kpi-value" id="kpi-savings">--</div>
+          <div class="kpi-label">Value Recovered (MTD)</div>
+        </div>
+        <div class="kpi-trend"><i class="bi bi-check-circle text-success"></i> <span class="text-success small">AI-assisted recovery</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Charts Row -->
+  <div class="row g-4 mb-4">
+    <div class="col-xl-8">
+      <div class="chart-card">
+        <div class="chart-card-header">
+          <div>
+            <h5 class="chart-title">Returns Volume - 30 Day Trend</h5>
+            <p class="chart-sub">Daily return submissions over the last 30 days</p>
+          </div>
+        </div>
+        <div class="chart-body">
+          <canvas id="trendChart" height="120"></canvas>
+        </div>
+      </div>
+    </div>
+    <div class="col-xl-4">
+      <div class="chart-card h-100">
+        <div class="chart-card-header">
+          <div>
+            <h5 class="chart-title">Condition Distribution</h5>
+            <p class="chart-sub">Assessed returns by condition grade</p>
+          </div>
+        </div>
+        <div class="chart-body d-flex align-items-center justify-content-center">
+          <canvas id="conditionChart" height="220" width="220"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Recent Returns Table -->
+  <div class="row">
+    <div class="col-12">
+      <div class="table-card">
+        <div class="table-card-header d-flex justify-content-between align-items-center">
+          <div>
+            <h5 class="chart-title mb-0">Recent Returns</h5>
+            <p class="chart-sub mb-0">Latest 10 returns across all channels</p>
+          </div>
+          <a href="/fraud" class="btn btn-sm btn-outline-danger">
+            <i class="bi bi-shield-exclamation me-1"></i>View Fraud Alerts
+          </a>
+        </div>
+        <div class="table-responsive">
+          <table class="table ezi-table mb-0">
+            <thead>
+              <tr>
+                <th>Order ID</th>
+                <th>Customer</th>
+                <th>Product</th>
+                <th>Status</th>
+                <th>Condition</th>
+                <th>Risk Score</th>
+                <th>Value (ZAR)</th>
+                <th>Date</th>
+              </tr>
+            </thead>
+            <tbody id="returns-table">
+              <tr><td colspan="8" class="text-center py-4 text-muted"><i class="bi bi-hourglass-split me-2"></i>Loading...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const CONDITION_COLORS = {
+  'New/Unused': '#00C853',
+  'Like New': '#00BDA5',
+  'Good': '#1565C0',
+  'Fair': '#F5A623',
+  'Poor': '#FF6D00',
+  'Damaged/Unusable': '#DC3545',
+};
+
+const STATUS_BADGES = {
+  'pending_assessment': 'badge-warning',
+  'assessed': 'badge-info',
+  'approved': 'badge-success',
+  'rejected': 'badge-danger',
+  'refunded': 'badge-success',
+  'in_transit': 'badge-primary',
+};
+
+let trendChart, conditionChart;
+
+function riskBadge(score) {
+  if (score >= 80) return `<span class="risk-badge risk-critical">${score.toFixed(0)}</span>`;
+  if (score >= 60) return `<span class="risk-badge risk-high">${score.toFixed(0)}</span>`;
+  if (score >= 40) return `<span class="risk-badge risk-medium">${score.toFixed(0)}</span>`;
+  return `<span class="risk-badge risk-low">${score.toFixed(0)}</span>`;
+}
+
+function statusBadge(s) {
+  const cls = STATUS_BADGES[s] || 'badge-secondary';
+  const label = s.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+  return `<span class="status-badge ${cls}">${label}</span>`;
+}
+
+function conditionBadge(c) {
+  if (!c) return '<span class="text-muted">-</span>';
+  const color = CONDITION_COLORS[c] || '#6c757d';
+  return `<span class="condition-dot" style="background:${color}"></span><span class="small">${c}</span>`;
+}
+
+async function loadDashboard() {
+  try {
+    const res = await fetch('/api/dashboard-data');
+    const data = await res.json();
+
+    // KPIs
+    document.getElementById('kpi-today').textContent = data.kpis.today_returns;
+    document.getElementById('kpi-pending').textContent = data.kpis.pending;
+    document.getElementById('kpi-fraud').textContent = data.kpis.fraud_alerts;
+    document.getElementById('kpi-savings').textContent = data.kpis.cost_savings;
+
+    // Trend chart
+    const labels = data.trend.map(d => {
+      const dt = new Date(d.date);
+      return dt.toLocaleDateString('en-ZA', {day:'numeric', month:'short'});
+    });
+    const counts = data.trend.map(d => d.count);
+
+    if (trendChart) trendChart.destroy();
+    trendChart = new Chart(document.getElementById('trendChart'), {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [{
+          label: 'Returns',
+          data: counts,
+          borderColor: '#0A4C8A',
+          backgroundColor: 'rgba(10,76,138,0.08)',
+          borderWidth: 2.5,
+          pointRadius: 3,
+          pointBackgroundColor: '#0A4C8A',
+          fill: true,
+          tension: 0.4,
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: { legend: { display: false }, tooltip: { mode: 'index', intersect: false } },
+        scales: {
+          y: { beginAtZero: true, grid: { color: '#f0f4f8' }, ticks: { color: '#6C7D8C' } },
+          x: { grid: { display: false }, ticks: { color: '#6C7D8C', maxTicksLimit: 10 } }
+        }
+      }
+    });
+
+    // Condition donut
+    if (data.conditions.length > 0) {
+      const condLabels = data.conditions.map(c => c.label);
+      const condCounts = data.conditions.map(c => c.count);
+      const condColors = condLabels.map(l => CONDITION_COLORS[l] || '#adb5bd');
+      if (conditionChart) conditionChart.destroy();
+      conditionChart = new Chart(document.getElementById('conditionChart'), {
+        type: 'doughnut',
+        data: {
+          labels: condLabels,
+          datasets: [{ data: condCounts, backgroundColor: condColors, borderWidth: 2, borderColor: '#fff' }]
+        },
+        options: {
+          responsive: true,
+          cutout: '65%',
+          plugins: {
+            legend: { position: 'bottom', labels: { padding: 12, usePointStyle: true, font: { size: 11 } } }
+          }
+        }
+      });
+    }
+
+    // Table
+    const tbody = document.getElementById('returns-table');
+    if (data.recent.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="8" class="text-center py-4 text-muted">No returns found</td></tr>';
+      return;
+    }
+    tbody.innerHTML = data.recent.map(r => `
+      <tr>
+        <td><code class="order-id">${r.order_id}</code></td>
+        <td>${r.customer}</td>
+        <td class="product-cell">${r.product}</td>
+        <td>${statusBadge(r.status)}</td>
+        <td class="d-flex align-items-center gap-1">${conditionBadge(r.condition)}</td>
+        <td>${riskBadge(r.fraud_score)}</td>
+        <td>R${r.value.toLocaleString('en-ZA', {minimumFractionDigits:0})}</td>
+        <td class="text-muted small">${r.created_at}</td>
+      </tr>
+    `).join('');
+  } catch (e) {
+    console.error('Dashboard load error:', e);
+  }
+}
+
+loadDashboard();
+</script>
+{% endblock %}

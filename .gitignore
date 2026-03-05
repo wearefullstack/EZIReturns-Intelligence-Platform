@@ -1,0 +1,9 @@
+venv/
+ezi_local.db
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.DS_Store
+database/data/
+postgres_data/
