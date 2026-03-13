@@ -1,183 +1,393 @@
 {% extends 'base.html' %}
-{% block title %}Customer Chat - Ezi Returns{% endblock %}
+{% block title %}My Queue - Ezi Returns{% endblock %}
 
-{% block content %}
-<div class="page-header">
-  <div class="container-fluid px-4">
-    <h1 class="page-title"><i class="bi bi-chat-dots me-2 text-warning"></i>AI Customer Service</h1>
-    <p class="page-sub">24/7 intelligent returns assistant &bull; Handles queries, policy questions and status checks</p>
-  </div>
+{% block topbar_title %}Inquiry Queue{% endblock %}
+
+{# ---- Sidebar extras: queue stats + filters ---- #}
+{% block sidebar_extra %}{% endblock %}
+
+{% block sidebar_bottom %}
+<div class="sidebar-queue-stats">
+  <div class="queue-stats-title">Queue Stats</div>
+  <div class="queue-stat-row">Open: <strong id="sb-open">42</strong></div>
+  <div class="queue-stat-row">SLA Risk: <strong class="queue-stat-sla" id="sb-sla">5</strong> <span style="font-size:10px;color:rgba(255,255,255,0.3)">(gold highlight)</span></div>
 </div>
+<div class="sidebar-filters">
+  <div class="sidebar-filter-section">
+    <div class="sidebar-filter-header" onclick="toggleSidebarFilter('filter-status','chevron-status')">
+      Status <i class="bi bi-chevron-down" id="chevron-status"></i>
+    </div>
+    <div class="sidebar-filter-body" id="filter-status" style="display:none"></div>
+  </div>
 
-<div class="container-fluid px-4 pb-5">
-  <div class="row g-4">
-
-    <!-- Chat Panel -->
-    <div class="col-lg-8">
-      <div class="chat-card">
-        <!-- Chat header -->
-        <div class="chat-header">
-          <div class="d-flex align-items-center gap-3">
-            <div class="agent-avatar">
-              <i class="bi bi-robot"></i>
-            </div>
-            <div>
-              <div class="fw-bold">Ezi Returns Assistant</div>
-              <div class="agent-status">
-                <span class="status-dot"></span>
-                {% if ai_enabled %}AI Powered by Claude{% else %}Demo Mode{% endif %}
-              </div>
-            </div>
-            <div class="ms-auto">
-              <span class="badge bg-success-subtle text-success border border-success-subtle">Online</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- Messages -->
-        <div class="chat-messages" id="chat-messages">
-          <div class="message message-bot">
-            <div class="message-bubble">
-              Hi! I'm the Ezi Returns assistant. I can help you with return status, starting a return, refund timelines, and shipping questions.
-              <br><br>
-              How can I help you today?
-            </div>
-            <div class="message-time">Now</div>
-          </div>
-        </div>
-
-        <!-- Input -->
-        <div class="chat-input-area">
-          <div class="d-flex gap-2">
-            <input
-              type="text"
-              id="chat-input"
-              class="form-control chat-input"
-              placeholder="Type your message..."
-              onkeydown="if(event.key==='Enter' && !event.shiftKey) { event.preventDefault(); sendMessage(); }"
-              autocomplete="off"
-            >
-            <button class="btn btn-primary chat-send-btn" onclick="sendMessage()" id="send-btn">
-              <i class="bi bi-send-fill"></i>
-            </button>
-          </div>
-        </div>
+  <div class="sidebar-filter-section">
+    <div class="sidebar-filter-header" onclick="toggleSidebarFilter('filter-priority','chevron-priority')">
+      Priority <i class="bi bi-chevron-up" id="chevron-priority"></i>
+    </div>
+    <div class="sidebar-filter-body" id="filter-priority">
+      <div class="filter-check-item">
+        <div class="filter-dot" style="background:#DC3545"></div>Red Urgent
+      </div>
+      <div class="filter-check-item">
+        <div class="filter-dot" style="background:#F5A623"></div>Gold High
+      </div>
+      <div class="filter-check-item">
+        <div class="filter-dot" style="background:#0A4C8A"></div>Blue Normal
       </div>
     </div>
+  </div>
 
-    <!-- Sidebar -->
-    <div class="col-lg-4">
-
-      <!-- Quick Questions -->
-      <div class="chart-card mb-4">
-        <div class="chart-card-header">
-          <h5 class="chart-title mb-0"><i class="bi bi-lightning me-2"></i>Quick Questions</h5>
-        </div>
-        <div class="p-3 d-grid gap-2">
-          <button class="btn btn-outline-secondary btn-sm text-start quick-btn" onclick="quickSend('How do I start a return?')">
-            <i class="bi bi-arrow-return-left me-2"></i>How do I start a return?
-          </button>
-          <button class="btn btn-outline-secondary btn-sm text-start quick-btn" onclick="quickSend('How long does my refund take?')">
-            <i class="bi bi-clock me-2"></i>How long does my refund take?
-          </button>
-          <button class="btn btn-outline-secondary btn-sm text-start quick-btn" onclick="quickSend('What is your return policy?')">
-            <i class="bi bi-file-text me-2"></i>What is your return policy?
-          </button>
-          <button class="btn btn-outline-secondary btn-sm text-start quick-btn" onclick="quickSend('How do I track my return shipment?')">
-            <i class="bi bi-truck me-2"></i>How do I track my return?
-          </button>
-          <button class="btn btn-outline-secondary btn-sm text-start quick-btn" onclick="quickSend('Do I need to pay for return shipping?')">
-            <i class="bi bi-box-seam me-2"></i>Do I pay for return shipping?
-          </button>
-          <button class="btn btn-outline-secondary btn-sm text-start quick-btn" onclick="quickSend('I have an international return, what do I need to know about customs?')">
-            <i class="bi bi-globe me-2"></i>International return / customs
-          </button>
-        </div>
-      </div>
-
-      <!-- Info Card -->
-      <div class="chart-card">
-        <div class="chart-card-header">
-          <h5 class="chart-title mb-0"><i class="bi bi-info-circle me-2"></i>Policy Summary</h5>
-        </div>
-        <div class="p-3">
-          <ul class="policy-list">
-            <li><i class="bi bi-check-circle-fill text-success me-2"></i>Returns within <strong>30 days</strong></li>
-            <li><i class="bi bi-check-circle-fill text-success me-2"></i>Refunds in <strong>5-7 business days</strong></li>
-            <li><i class="bi bi-check-circle-fill text-success me-2"></i>Free returns for <strong>defective items</strong></li>
-            <li><i class="bi bi-dash-circle text-warning me-2"></i><strong>R85 fee</strong> for change of mind</li>
-            <li><i class="bi bi-check-circle-fill text-success me-2"></i>24/7 AI support</li>
-            <li><i class="bi bi-people-fill text-primary me-2"></i>Human escalation available</li>
-          </ul>
-          {% if not ai_enabled %}
-          <div class="alert alert-info mb-0 small mt-2">
-            <i class="bi bi-info-circle me-1"></i>Demo mode active. Set <code>ANTHROPIC_API_KEY</code> for live AI.
-          </div>
-          {% endif %}
-        </div>
-      </div>
-
+  <div class="sidebar-filter-section">
+    <div class="sidebar-filter-header" onclick="toggleSidebarFilter('filter-ai','chevron-ai')">
+      AI Confidence <i class="bi bi-chevron-down" id="chevron-ai"></i>
     </div>
+    <div class="sidebar-filter-body" id="filter-ai" style="display:none"></div>
   </div>
 </div>
 {% endblock %}
 
+{# ---- No footer on chat page (full-height workspace) ---- #}
+{% block footer %}{% endblock %}
+
+{% block content %}
+<div class="chat-workspace">
+
+  {# ===== CENTER: Inquiry Queue ===== #}
+  <div class="queue-panel">
+    <div class="queue-panel-header d-flex align-items-center justify-content-between">
+      <h5 class="queue-panel-title mb-0">Inquiry Queue</h5>
+      <span class="text-muted small" id="queue-count"></span>
+    </div>
+    <div class="queue-table-wrap">
+      <table class="table ezi-table queue-table mb-0">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Customer Name</th>
+            <th>Type</th>
+            <th>Status</th>
+            <th>Priority</th>
+            <th>Created</th>
+            <th>SLA Target</th>
+            <th>AI Score</th>
+          </tr>
+        </thead>
+        <tbody id="queue-tbody">
+          <tr><td colspan="8" class="text-center py-4 text-muted"><i class="bi bi-hourglass-split me-2"></i>Loading...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  {# ===== RIGHT: Detail / Conversation Panel ===== #}
+  <div class="detail-panel">
+
+    {# Header #}
+    <div class="detail-panel-header">
+      <div style="min-width:0">
+        <div class="detail-inq-title" id="detail-title">Select an inquiry</div>
+        <div class="detail-inq-type" id="detail-type"></div>
+      </div>
+      <span id="detail-risk"></span>
+    </div>
+
+    {# Customer card #}
+    <div class="customer-card-section">
+      <div class="customer-card-toggle" onclick="toggleCustomerCard()">
+        <span>Customer Card</span>
+        <i class="bi bi-chevron-down" id="cc-chevron"></i>
+      </div>
+      <div id="cc-body" class="customer-card-body" style="display:none">
+        <div class="customer-card-name" id="cc-name">—</div>
+        <div id="cc-info"></div>
+      </div>
+    </div>
+
+    {# Conversation thread label #}
+    <div class="conv-thread-label">Conversation Thread</div>
+
+    {# Messages #}
+    <div class="conv-thread" id="conv-thread">
+      <div class="text-center text-muted small py-3" id="conv-placeholder">
+        <i class="bi bi-chat-dots d-block mb-2" style="font-size:24px;opacity:0.3"></i>
+        Select an inquiry to view conversation
+      </div>
+    </div>
+
+    {# AI suggested response #}
+    <div class="ai-suggestion-box" id="ai-suggestion-box" style="display:none">
+      <div class="ai-suggestion-header">
+        <span class="ai-suggestion-label"><i class="bi bi-cpu me-1"></i>AI Suggested Response</span>
+        <span class="ai-confidence-badge" id="ai-conf-badge">AI Confidence: 92%</span>
+      </div>
+      <div class="ai-suggestion-text" id="ai-suggestion-text"></div>
+      <div class="suggestion-actions">
+        <button class="btn btn-sm btn-warning btn-outline-warning" style="font-size:12px;padding:3px 10px" onclick="applyAiSuggestion()">Apply &amp; Edit</button>
+        <button class="btn btn-sm btn-outline-secondary" style="font-size:12px;padding:3px 10px" onclick="dismissSuggestion()">Reject</button>
+      </div>
+    </div>
+
+    {# Text toolbar #}
+    <div class="detail-input-toolbar">
+      <button class="toolbar-btn" style="font-weight:700">B</button>
+      <button class="toolbar-btn" style="font-style:italic">I</button>
+      <button class="toolbar-btn" style="text-decoration:underline">U</button>
+      <button class="toolbar-btn"><s style="font-size:11px">S</s></button>
+      <div class="toolbar-divider"></div>
+      <button class="toolbar-btn"><i class="bi bi-link-45deg"></i></button>
+      <button class="toolbar-btn"><i class="bi bi-infinity"></i></button>
+      <div class="toolbar-divider"></div>
+      <button class="toolbar-btn"><i class="bi bi-list-ul"></i></button>
+      <button class="toolbar-btn"><i class="bi bi-list-ol"></i></button>
+      <div class="toolbar-divider ms-auto"></div>
+      <button class="toolbar-btn"><i class="bi bi-paperclip"></i></button>
+    </div>
+
+    {# Reply input #}
+    <div class="detail-reply-area">
+      <textarea
+        class="detail-reply-input"
+        id="reply-input"
+        placeholder="Type your reply..."
+        rows="2"
+        onkeydown="if(event.key==='Enter' && event.ctrlKey) sendUpdate()"
+      ></textarea>
+    </div>
+
+    {# Send button #}
+    <button class="send-update-btn" onclick="sendUpdate()">
+      <i class="bi bi-send me-2"></i>Send Update
+    </button>
+
+  </div>{# /detail-panel #}
+
+</div>{# /chat-workspace #}
+{% endblock %}
+
 {% block scripts %}
 <script>
+// ── State ─────────────────────────────────────────────────────
+let inquiries = [];
+let selectedId = null;
 let chatHistory = [];
-let sessionId = 'session-' + Math.random().toString(36).substr(2, 9);
-let isTyping = false;
+let isSending = false;
+const sessionId = 'session-' + Math.random().toString(36).substr(2, 9);
 
-function addMessage(role, text) {
-  const container = document.getElementById('chat-messages');
+// Sample conversation threads per inquiry type
+const CONV_TEMPLATES = {
+  damage: [
+    { from: 'customer', text: 'Hi, I received my order but the product is damaged. I want to return it.', time: '12:22 AM' },
+    { from: 'agent',    text: 'Hi! I\'m sorry to hear that. Could you describe the damage or share a photo so we can process your return quickly?', time: '12:24 AM' },
+    { from: 'customer', text: 'The product had a cracked housing and was missing some components.', time: '12:27 AM' },
+  ],
+  return: [
+    { from: 'customer', text: 'I would like to return this item — it doesn\'t match what was described.', time: '11:45 AM' },
+    { from: 'agent',    text: 'Of course! I can help you start the return. Could you share your order number so I can pull up the details?', time: '11:46 AM' },
+    { from: 'customer', text: 'Sure, it\'s the order I placed last week — here are the details.', time: '11:52 AM' },
+  ],
+};
+
+const AI_SUGGESTIONS = [
+  { text: 'Thank you for confirming the damage. We\'ve logged your return and issued a prepaid label — please check your email. Refund will process within 5–7 business days once the item is received.', conf: 92 },
+  { text: 'I\'ve verified your order details. Your return has been approved and a free prepaid shipping label has been sent to your email address. Please allow 5–7 business days for the refund to reflect.', conf: 88 },
+  { text: 'Thank you for reaching out. Based on your return reason we\'re happy to waive the return fee. A shipping label has been emailed to you — please pack the item securely.', conf: 85 },
+];
+
+// ── Sidebar filter toggle ──────────────────────────────────────
+function toggleSidebarFilter(bodyId, chevronId) {
+  const body = document.getElementById(bodyId);
+  const chevron = document.getElementById(chevronId);
+  const open = body.style.display !== 'none';
+  body.style.display = open ? 'none' : 'block';
+  chevron.className = open ? 'bi bi-chevron-down' : 'bi bi-chevron-up';
+}
+
+// ── Customer card toggle ───────────────────────────────────────
+function toggleCustomerCard() {
+  const body = document.getElementById('cc-body');
+  const chev = document.getElementById('cc-chevron');
+  const open = body.style.display !== 'none';
+  body.style.display = open ? 'none' : 'block';
+  chev.className = open ? 'bi bi-chevron-down' : 'bi bi-chevron-up';
+}
+
+// ── Build inquiry row HTML ─────────────────────────────────────
+function typeBadge(type) {
+  if (type === 'damage') return '<span class="type-badge type-damage">Damaged Item</span>';
+  return '<span class="type-badge type-return">Return Status</span>';
+}
+
+function statusBadge(status) {
+  if (status === 'in_progress') return '<span class="status-in-progress">In Progress</span>';
+  return '<span class="status-new">New</span>';
+}
+
+function priorityIcon(score) {
+  if (score >= 60) return '<i class="bi bi-arrow-up priority-high" title="High priority"></i>';
+  return '<i class="bi bi-dash priority-normal" title="Normal"></i>';
+}
+
+function aiScoreBar(score) {
+  const pct = Math.min(100, Math.round(score));
+  return `
+    <div class="ai-score-wrap">
+      <div class="ai-score-bar"><div class="ai-score-fill" style="width:${pct}%"></div></div>
+      <span class="ai-score-num">${pct}%</span>
+    </div>`;
+}
+
+function slaTarget(dateStr) {
+  // Return a time label relative to the date
+  const labels = ['24 mins', '22 mins', '20 mins', '15 mins', '10 mins', '8 mins', '6 mins', '4 mins', '3 mins', '2 mins'];
+  const idx = Math.abs(dateStr.charCodeAt(8) - 48) % labels.length;
+  return labels[idx];
+}
+
+function createdAgo(dateStr) {
+  const labels = ['20 mins ago', '22 mins ago', '24 mins ago', '14 mins ago', '15 mins ago', '8 mins ago', '6 mins ago', '4 mins ago', '3 mins ago', '2 mins ago'];
+  const idx = Math.abs((dateStr.charCodeAt(8) - 48) + (dateStr.charCodeAt(9) - 48)) % labels.length;
+  return labels[idx];
+}
+
+// ── Render queue table ─────────────────────────────────────────
+function renderQueue() {
+  const tbody = document.getElementById('queue-tbody');
+  if (!inquiries.length) {
+    tbody.innerHTML = '<tr><td colspan="8" class="text-center py-4 text-muted">No inquiries found</td></tr>';
+    return;
+  }
+  document.getElementById('queue-count').textContent = inquiries.length + ' items';
+  document.getElementById('sb-open').textContent = inquiries.length + 10;
+
+  tbody.innerHTML = inquiries.map((inq, i) => {
+    const selected = inq.id === selectedId ? 'selected' : '';
+    return `
+      <tr class="queue-row ${selected}" onclick="selectInquiry(${i})" data-idx="${i}">
+        <td><span class="inq-id">${inq.inq_id}</span></td>
+        <td class="fw-semibold small">${inq.customer}</td>
+        <td>${typeBadge(inq.type)}</td>
+        <td>${statusBadge(inq.status)}</td>
+        <td>${priorityIcon(inq.score)}</td>
+        <td class="text-muted small">${createdAgo(inq.date)}</td>
+        <td class="text-muted small">${slaTarget(inq.date)}</td>
+        <td>${aiScoreBar(inq.score)}</td>
+      </tr>`;
+  }).join('');
+}
+
+// ── Select an inquiry ──────────────────────────────────────────
+function selectInquiry(idx) {
+  const inq = inquiries[idx];
+  if (!inq) return;
+  selectedId = inq.id;
+
+  // Highlight row
+  document.querySelectorAll('.queue-row').forEach(r => r.classList.remove('selected'));
+  const row = document.querySelector(`.queue-row[data-idx="${idx}"]`);
+  if (row) row.classList.add('selected');
+
+  // Update header
+  document.getElementById('detail-title').textContent = inq.inq_id + ' | ' + (inq.type === 'damage' ? 'Damaged Item' : 'Return Status');
+  document.getElementById('detail-type').textContent = inq.product || '';
+
+  const riskEl = document.getElementById('detail-risk');
+  if (inq.score >= 60) {
+    riskEl.innerHTML = '<span class="risk-badge-high">High Risk</span>';
+  } else if (inq.score >= 40) {
+    riskEl.innerHTML = '<span class="risk-badge-medium">Medium Risk</span>';
+  } else {
+    riskEl.innerHTML = '<span class="risk-badge-low">Low Risk</span>';
+  }
+
+  // Customer card
+  document.getElementById('cc-name').textContent = inq.customer;
+  document.getElementById('cc-info').innerHTML = `
+    <div>Total Returns: ${inq.total_returns || Math.floor(Math.random()*20)+1}, Return Rate: <span class="${inq.score >= 60 ? 'text-danger' : 'text-muted'}">${inq.return_rate || Math.floor(Math.random()*35)+10}% ${inq.score >= 60 ? '(High)' : ''}</span></div>`;
+  document.getElementById('cc-body').style.display = 'block';
+  document.getElementById('cc-chevron').className = 'bi bi-chevron-up';
+
+  // Conversation thread
+  chatHistory = [];
+  const templateKey = inq.type === 'damage' ? 'damage' : 'return';
+  renderConvThread(CONV_TEMPLATES[templateKey]);
+
+  // AI suggestion
+  const suggIdx = idx % AI_SUGGESTIONS.length;
+  const sugg = AI_SUGGESTIONS[suggIdx];
+  document.getElementById('ai-suggestion-text').textContent = sugg.text;
+  document.getElementById('ai-conf-badge').textContent = 'AI Confidence: ' + sugg.conf + '%';
+  document.getElementById('ai-suggestion-box').style.display = 'block';
+
+  // Set up chat context
+  chatHistory = CONV_TEMPLATES[templateKey].map(m => ({
+    role: m.from === 'customer' ? 'user' : 'assistant',
+    content: m.text
+  }));
+
+  // Clear reply input
+  document.getElementById('reply-input').value = '';
+}
+
+// ── Render conversation thread ─────────────────────────────────
+function renderConvThread(messages) {
+  const thread = document.getElementById('conv-thread');
+  document.getElementById('conv-placeholder').style.display = 'none';
+  thread.innerHTML = messages.map(m => {
+    const isCustomer = m.from === 'customer';
+    const bubbleClass = isCustomer ? 'message-bot' : 'message-user';
+    return `
+      <div class="message ${bubbleClass}">
+        <div class="message-bubble">${m.text}</div>
+        <div class="message-time">${m.time || ''}</div>
+      </div>`;
+  }).join('');
+  thread.scrollTop = thread.scrollHeight;
+}
+
+// ── Add a message to thread ───────────────────────────────────
+function addThreadMessage(role, text) {
+  const thread = document.getElementById('conv-thread');
+  document.getElementById('conv-placeholder').style.display = 'none';
+  const now = new Date().toLocaleTimeString('en-ZA', { hour: '2-digit', minute: '2-digit' });
+  const cls = role === 'agent' ? 'message-user' : 'message-bot';
   const div = document.createElement('div');
-  div.className = `message message-${role === 'user' ? 'user' : 'bot'}`;
-
-  const now = new Date();
-  const time = now.toLocaleTimeString('en-ZA', { hour: '2-digit', minute: '2-digit' });
-
-  div.innerHTML = `
-    <div class="message-bubble">${text.replace(/\n/g, '<br>')}</div>
-    <div class="message-time">${time}</div>
-  `;
-  container.appendChild(div);
-  container.scrollTop = container.scrollHeight;
+  div.className = 'message ' + cls;
+  div.innerHTML = `<div class="message-bubble">${text.replace(/\n/g, '<br>')}</div><div class="message-time">${now}</div>`;
+  thread.appendChild(div);
+  thread.scrollTop = thread.scrollHeight;
 }
 
-function showTyping() {
-  const container = document.getElementById('chat-messages');
-  const div = document.createElement('div');
-  div.className = 'message message-bot typing-indicator-wrap';
-  div.id = 'typing-indicator';
-  div.innerHTML = `
-    <div class="message-bubble typing-bubble">
-      <span class="typing-dot"></span>
-      <span class="typing-dot"></span>
-      <span class="typing-dot"></span>
-    </div>
-  `;
-  container.appendChild(div);
-  container.scrollTop = container.scrollHeight;
+// ── Apply AI suggestion ────────────────────────────────────────
+function applyAiSuggestion() {
+  const text = document.getElementById('ai-suggestion-text').textContent;
+  document.getElementById('reply-input').value = text;
+  document.getElementById('reply-input').focus();
+  document.getElementById('ai-suggestion-box').style.display = 'none';
 }
 
-function hideTyping() {
-  const el = document.getElementById('typing-indicator');
-  if (el) el.remove();
+function dismissSuggestion() {
+  document.getElementById('ai-suggestion-box').style.display = 'none';
 }
 
-async function sendMessage() {
-  if (isTyping) return;
-  const input = document.getElementById('chat-input');
+// ── Send update ────────────────────────────────────────────────
+async function sendUpdate() {
+  if (isSending) return;
+  const input = document.getElementById('reply-input');
   const text = input.value.trim();
   if (!text) return;
+  if (!selectedId) {
+    alert('Please select an inquiry first.');
+    return;
+  }
 
   input.value = '';
-  addMessage('user', text);
-  chatHistory.push({ role: 'user', content: text });
+  addThreadMessage('agent', text);
+  chatHistory.push({ role: 'assistant', content: text });
 
-  isTyping = true;
-  document.getElementById('send-btn').disabled = true;
-  showTyping();
+  // Get AI response to show as next customer message (simulates live chat)
+  isSending = true;
+  document.querySelector('.send-update-btn').disabled = true;
+  document.querySelector('.send-update-btn').innerHTML = '<i class="bi bi-hourglass-split me-2"></i>Sending...';
 
   try {
     const res = await fetch('/api/chat', {
@@ -185,32 +395,63 @@ async function sendMessage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         message: text,
-        history: chatHistory.slice(-10),
+        history: chatHistory.slice(-8),
         session_id: sessionId,
       }),
     });
     const data = await res.json();
-    hideTyping();
-    if (data.error) {
-      addMessage('bot', 'Sorry, I encountered an issue. Please try again.');
-    } else {
-      addMessage('bot', data.message);
-      chatHistory.push({ role: 'assistant', content: data.message });
-      if (data.session_id) sessionId = data.session_id;
+    if (data.message) {
+      // Show AI-generated reply as a new suggested response
+      const conf = Math.floor(Math.random() * 10) + 85;
+      document.getElementById('ai-suggestion-text').textContent = data.message;
+      document.getElementById('ai-conf-badge').textContent = 'AI Confidence: ' + conf + '%';
+      document.getElementById('ai-suggestion-box').style.display = 'block';
+      chatHistory.push({ role: 'user', content: data.message });
     }
   } catch (e) {
-    hideTyping();
-    addMessage('bot', 'Connection error. Please check your network and try again.');
+    console.warn('Chat API error:', e);
   } finally {
-    isTyping = false;
-    document.getElementById('send-btn').disabled = false;
-    input.focus();
+    isSending = false;
+    const btn = document.querySelector('.send-update-btn');
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-send me-2"></i>Send Update';
   }
 }
 
-function quickSend(text) {
-  document.getElementById('chat-input').value = text;
-  sendMessage();
+// ── Load inquiry queue from returns data ───────────────────────
+async function loadQueue() {
+  try {
+    const res = await fetch('/api/dashboard-data');
+    const data = await res.json();
+    const returns = data.recent || [];
+
+    // Map returns to inquiry format
+    inquiries = returns.map((r, i) => ({
+      id: r.order_id,
+      inq_id: 'INQ-' + (45821 + i),
+      customer: r.customer,
+      product: r.product,
+      type: (r.condition === 'Damaged/Unusable' || r.fraud_score > 50) ? 'damage' : 'return',
+      status: ['pending_assessment', 'assessed'].includes(r.status) ? 'new' : 'in_progress',
+      score: r.fraud_score || Math.floor(Math.random() * 40) + 55,
+      date: r.created_at || '',
+      total_returns: Math.floor(Math.random() * 18) + 2,
+      return_rate: Math.floor(Math.random() * 30) + 12,
+    }));
+
+    renderQueue();
+
+    // Auto-select first row
+    if (inquiries.length > 0) {
+      selectInquiry(0);
+    }
+  } catch (e) {
+    document.getElementById('queue-tbody').innerHTML =
+      '<tr><td colspan="8" class="text-center py-4 text-danger"><i class="bi bi-exclamation-triangle me-2"></i>Failed to load queue</td></tr>';
+  }
 }
+
+// ── Init ──────────────────────────────────────────────────────
+loadQueue();
 </script>
 {% endblock %}
